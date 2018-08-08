@@ -1,0 +1,371 @@
+---
+title: "Show or No Show?"
+author: "Rajat Bansal"
+date: "5 August 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Setting up
+
+```{r SETTING UP THE DATASET}
+#getwd()
+setwd('/home/iamawesome/Downloads/')
+list.files()
+appointmentData <- read.csv('appointment.csv')
+names(appointmentData)
+str(appointmentData)
+summary(appointmentData)
+sum(is.na(appointmentData))
+#good to go!
+
+```
+
+### Trends in the Data
+
+```{r TRENDS WITHIN THE DATASET}
+library(ggplot2)
+library(ggthemes)
+library('dplyr')
+library(corrplot)
+library(caret)
+library(randomForest)
+library(e1071)
+#install.packages('tidytext')
+#install.packages('tidyverse')
+
+ggplot(aes(x= Gender, fill= Gender), data= appointmentData) +
+  geom_histogram(stat= 'count') +
+  xlab('Gender of the patient') +
+  ylab('# of appointments') +
+  ggtitle('Gender vs # of Appointments')
+
+```
+
+It appears Females take much more care of themselves than men. eh Obvious :P
+
+```{r }
+
+ggplot(aes(x= Gender, fill= Gender), data= subset(appointmentData, appointmentData$No.show== "Yes")) +
+  geom_histogram(stat= 'count') +
+  xlab('Gender of the patient') +
+  ylab('# of appointments missed') +
+  ggtitle('Gender v/s Appointments missed')
+#well this is not a reasonable metric as # of women was already much high. 
+
+womenpercent= nrow(subset(appointmentData, appointmentData$Gender== "F" & appointmentData$No.show== "Yes"))/nrow(subset(appointmentData, appointmentData$Gender== "F"))
+menpercent= nrow(subset(appointmentData, appointmentData$Gender== "M" & appointmentData$No.show== "Yes"))/nrow(subset(appointmentData, appointmentData$Gender== "M"))
+
+```
+
+Well, this was unexpected. It seems that the percentage of both Men and Women who missed the appointments is nearly equal (about 20%). Thus, no matter who they are equally likely of not showing at the appointment
+
+```{r }
+
+ggplot(aes(x= No.show, fill= No.show), data= appointmentData) +
+  geom_histogram(stat= 'count') +
+  xlab('Did the patient show up?') +
+  ylab('# of Patients') +
+  ggtitle('Show or No Show?')
+
+table(appointmentData$No.show)
+
+percentnoshow= nrow(subset(appointmentData, appointmentData$No.show== "Yes"))/nrow(subset(appointmentData, appointmentData$No.show== "No"))
+  
+```
+
+About 25% of the total appointments were no shows!!! That's a lot of wastage of Human effort and resources right there. 
+
+```{r Trends with Age}
+
+summary(appointmentData$Age)
+appointmentData <- subset(appointmentData, appointmentData$Age >= 0)
+appointmentData$numNoshow <- as.numeric(appointmentData$No.show) - 1
+
+byAge <- group_by(appointmentData, Age)
+
+appointmentData.byAge <- summarise(byAge, 
+                                   hypertension= sum(Hipertension), 
+                                   diabetes= sum(Diabetes), 
+                                   alcoholism= sum(Alcoholism),
+                                   noshow= sum(numNoshow),
+                                   n= n())
+#sum(is.na(appointmentData.byAge))
+
+ggplot(aes(x= Age, y= n), data= appointmentData.byAge) +
+  geom_line(color= 'cornflowerblue', position = position_jitter(h= 0)) +
+  xlab('Age of the Patient') +
+  ylab('# of AAppointments') +
+  ggtitle('Appointments by Age') +
+  scale_x_continuous(limits= c(0, 75))
+
+```
+
+Note that most of the appointments made are for New borns/Infants and for the rest of ages upto nearly 60, the # of appointments is somewhat uniform and then wee see a sharp decline. This is obvious due to the Life Expectancy issues, well at this age the only appointments that people make are with Gods.
+
+```{r }
+
+ggplot(aes(x= Age, y= n), data= appointmentData.byAge) +
+  geom_line(color= 'cornflowerblue', position = position_jitter(h= 0)) +
+  geom_line(aes(y= noshow, group= 1), linetype= 2, position= position_jitter(h= 0), color=  I('#B23AEE')) +
+  xlab('Age of the Patient') +
+  ylab('# of AAppointments') +
+  ggtitle('Appointments by Age') +
+  scale_x_continuous(limits= c(0, 75)) 
+
+ggplot(aes(x= Age, y= noshow/n), data= appointmentData.byAge) +
+  geom_line(color= 'cornflowerblue', position = position_jitter(h= 0)) +
+  xlab('Age of the Patient') +
+  ylab('Ratio of No-Shows') +
+  ggtitle('Age v/s No Show ratio') +
+  scale_x_continuous(limits= c(0, 75)) +
+  geom_smooth(method= 'lm')
+
+```
+
+It seems that the ratio for the poeple who show to total Appointments somewhat peaks at about 15-25. This could be attributed to the fact that before this age, usually our parents make the appointments for us and take us there, but as we become independent we tend to make appointments but often miss out on them. Again agter 30's the decrease in ratio could be attributed to increase in maturity of person and being firm of their decisions. ALso, 15-25 is the general age where youth tends to play pranks often. 
+
+```{r }
+
+ggplot(aes(x= Age, y= alcoholism), data= appointmentData.byAge) +
+  geom_line(color= 'cornflowerblue', position= position_jitter(h= 0)) +
+  xlab('Age of the Patient') +
+  ylab('# of people with Alcoholism problems') +
+  ggtitle('Alcoholism with Age') +
+  scale_x_continuous(limits= c(0, 75)) +
+  geom_smooth(method= 'lm')
+
+ggplot(aes(x= Age, y= diabetes), data= appointmentData.byAge) +
+  geom_line(color= 'cornflowerblue', position= position_jitter(h= 0)) +
+  xlab('Age of the Patient') +
+  ylab('# of people with Alcoholism problems') +
+  ggtitle('Alcoholism with Age') +
+  scale_x_continuous(limits= c(0, 75)) +
+  geom_smooth(method= 'lm')
+
+```
+
+We can see that the Alcoholism in people peaks with Age at about 40-50 and then gradual decrease in trend. We also see a peak at about 62/63 but that isn't expected to happen very often. On the other hand, the # of diabetic people remains very low till about 33 years of age when we see a sudden rise till the peak at 65 after which the # of appointments made decreases again. One of the reasons for this is death.
+
+![Average life-span of diabetic people across Countries](/home/iamawesome/Pictures/diabetes.jpg)
+
+
+```{r }
+
+ggplot(aes(x= Age, y= hypertension), data= appointmentData.byAge) +
+  geom_line(color= 'cornflowerblue', position= position_jitter(h= 0)) +
+  xlab('Age of the Patient') +
+  ylab('# of people with Alcoholism problems') +
+  ggtitle('Alcoholism with Age') +
+  scale_x_continuous(limits= c(0, 75)) +
+  geom_smooth(method= 'lm')
+
+```
+
+Again we see a trend that is almost like Diabetes just peaks about 5 years earlier. 
+Now lets see who skips the most appointments. A diabetic, a hypertensionist(is this a word?) or an alcoholic!
+
+```{r Will you show up?}
+sub1 <- subset(appointmentData, appointmentData$Alcoholism== 1 & appointmentData$No.show== "Yes")
+byAge <- group_by(sub1, Age)
+sub1.byage <- summarise(byAge, 
+                        n= n())
+sub1.byage <- subset(sub1.byage, sub1.byage$Age <= 75)
+
+sub2 <- subset(appointmentData, appointmentData$Hipertension== 1 & appointmentData$No.show== "Yes")
+byAge <- group_by(sub2, Age)
+sub2.byage <- summarise(byAge, 
+                        n= n())
+sub2.byage <- subset(sub2.byage, sub2.byage$Age <= 75)
+
+sub3 <- subset(appointmentData, appointmentData$Diabetes== 1 & appointmentData$No.show== "Yes")
+byAge <- group_by(sub3, Age)
+sub3.byage <- summarise(byAge, 
+                        n= n())
+sub3.byage <- subset(sub3.byage, sub3.byage$Age<= 75)
+
+ggplot(aes(x= Age, y= n), data= sub1.byage) +
+  geom_line(color= I('#B23AEE'), position= position_jitter(h= 0)) +
+  geom_line(aes(y= n, group= 1), data= sub2.byage, color= 'cornflowerblue') +
+  geom_line(aes(y= n, group= 1), data= sub3.byage, color= 'green') +
+  xlab('Age of the Patient') +
+  ylab('# of No-Shows') +
+  ggtitle('Age v/s No-Show by Condition')
+
+```
+
+Well well. It is seen that people with HYpertension often have more No-Shows on their appointments compared to Alcoholics and Diabetic persons in general and this likelihood of not showing for appointments peaks around 55-65 years of age. One of the reasons could be health like sometimes they make appointments but arent able to show up due to getting seriously ill. Or maybe they just forget about the appointment, afterall we all know brain becomes weak with age and we tend to forget things. 
+
+```{r Transformations to the Dataset}
+library('lubridate')
+library(data.table)
+library(sqldf)
+
+appointmentData$callDate <- as.Date(substr(appointmentData$ScheduledDay, 1, 10))
+str(appointmentData)
+appointmentData$appDate <- as.Date(substr(appointmentData$AppointmentDay, 1, 10))
+appointmentData$appDay <- wday(appointmentData$appDate)
+table(appointmentData$appDay)
+
+ggplot(aes(x= appDay), data= appointmentData) +
+  geom_histogram(stat= 'count', color= 'black', fill= 'cornflowerblue') +
+  xlab('Day of the week') +
+  ylab('# of Appointments') +
+  ggtitle('Day v/s # of Appointments') +
+  scale_x_continuous(breaks= seq(0, 7, 1))
+
+```
+
+Note that no appointment took place on Monday. Guess Monday's the off-day! Also, only about <0.25% appointments took place on Sundays since even Doctors take a day off unless only in case of emergencies do they take appointments. Rest assured, most of the appointments were made for Wednesdays or Thursdays usually. 
+
+```{r }
+appointmentData$callHour <- as.integer(substr(appointmentData$ScheduledDay, 12, 13))
+table(appointmentData$callHour)
+
+ggplot(aes(x= callHour), data= appointmentData) +
+  geom_histogram(stat= 'count', color= 'black', fill= I('#B23AEE')) +
+  xlab('Hour the call was Made') +
+  ylab('# of Calls at this Hour') +
+  ggtitle('Calls by Hour')
+
+```
+
+```{r TRENDS WITH SMS_received}
+
+table(appointmentData$SMS_received)
+ggplot(aes(x= SMS_received), data= appointmentData) +
+  geom_histogram(stat= 'count', color= 'black', fill= I('#B23AEE')) +
+  facet_wrap(~ No.show) +
+  xlab('# OF SMS_received') +
+  ylab('# of Appointments') +
+  ggtitle('No-shows v/s SMS_received')
+
+```
+
+Doesn't look like SMSing the person about their appointment made a difference. The ones who didn't show up have almost equal numbers no matter the SMS was received or not. 
+
+
+```{r DATASET FOR PREDICTIONS}
+appointmentData$Lag <- as.numeric(as.Date(appointmentData$AppointmentDay) - as.Date(appointmentData$ScheduledDay)) 
+
+ggplot(aes(x= Lag), data= subset(appointmentData, appointmentData$No.show== 'No')) +
+  geom_density(color= 'cornflowerblue', fill= 'cornflowerblue') +
+  geom_density(aes(x= Lag), data= subset(appointmentData, appointmentData$No.show== 'Yes'), color= 'green', fill= 'green') +
+  scale_x_continuous(limits= c(-1, 30))
+
+appointmentData$schDay <- wday(appointmentData$ScheduledDay)
+appointmentData$appHour <- as.integer(substr(appointmentData$AppointmentDay, 12, 13))
+table(appointmentData$schDay)
+#table(appointmentData$appDay)
+
+appointmentData <- subset(appointmentData, appointmentData$Age <= 100)
+appointmentData.pred <- appointmentData[, c('Gender', 'Age', 'Scholarship', 'Hipertension', 'Diabetes', 'Alcoholism', 'Handcap', 'SMS_received', 'appDay', 'callHour', 'No.show', 'schDay', 'Lag', 'numNoshow')]
+appointmentData.pred$Gender <- as.numeric(appointmentData.pred$Gender) - 1
+appointmentData.pred2 <- appointmentData.pred[, c('Gender', 'Age', 'Scholarship', 'Hipertension', 'Diabetes', 'Alcoholism', 'Handcap', 'SMS_received', 'appDay', 'callHour', 'Lag', 'schDay', 'numNoshow')]
+appointmentData.pred3 <- appointmentData.pred[, c('Gender', 'Age', 'Scholarship', 'Hipertension', 'Diabetes', 'Alcoholism', 'Handcap', 'SMS_received', 'appDay', 'callHour', 'Lag', 'schDay', 'No.show')]
+
+```
+
+```{r Pre-processing the Data}
+appointmentData.pred2$Age <- appointmentData.pred2$Age/100
+table(appointmentData.pred2$Age)
+appointmentData.pred2$appDay <-appointmentData.pred2$appDay/10
+table(appointmentData.pred2$appDay)
+appointmentData.pred2$callHour <- appointmentData.pred2$callHour/100
+appointmentData.pred3$Age <- appointmentData.pred3$Age/100
+table(appointmentData.pred3$Age)
+appointmentData.pred3$appDay <-appointmentData.pred3$appDay/10
+table(appointmentData.pred3$appDay)
+appointmentData.pred3$callHour <- appointmentData.pred3$callHour/100
+
+corrplot(cor(appointmentData.pred2))
+#Age, SMS_received, callHour, Hipertension, Scholarship
+set.seed(204)
+
+
+```
+
+
+```{r LOGISTIC REGRESSION}
+smpSize <- floor(0.83*nrow(appointmentData.pred2))
+train_ind <- sample(seq_len(nrow(appointmentData.pred3)), size= smpSize)
+trainAppointment <- appointmentData.pred3[train_ind, ]
+testAppointment <- appointmentData.pred3[-train_ind, ]
+rownames(trainAppointment) <- 1:nrow(trainAppointment)
+rownames(testAppointment) <- 1:nrow(testAppointment)
+
+
+train_control <- trainControl(method= 'cv', number= 10)
+M1 <- train(No.show ~ Age + Hipertension + SMS_received + Scholarship, data= trainAppointment, trControl= train_control, method= 'glm')
+summary(M1)
+modelpred <- predict(M1, testAppointment)
+
+count= 0
+for (i in 1:nrow(testAppointment)){
+  if(modelpred[i]== testAppointment[i, "No.show"]){
+    count= count + 1
+  }
+}
+accuracy= count/nrow(testAppointment)
+print (accuracy)
+#try removing callHour column!
+
+```
+
+
+```{r RANDOM FOREST CLASSIFIER}
+#table(testAppointment$No.show)
+train_control <-  trainControl(method= 'cv', number= 10)
+#M2 <- train(numNoshow ~ ., data= trainAppointment, trControl= train_control, method= 'rf')
+M2 <- randomForest(No.show ~ ., data= trainAppointment, ntree= 240, mtry= 4, importance= TRUE)
+summary(M2)
+modelpred <- predict(M2, testAppointment)
+table(testAppointment$No.show, modelpred)
+
+count= 0
+for (i in 1:nrow(testAppointment)){
+  if(testAppointment[i, "No.show"]== modelpred[i]){
+    count= count + 1
+  }
+}
+accuracy= count/nrow(testAppointment)
+print (accuracy)
+#durbinWatsonTest(M2)
+#wtf why isnt either of the models ever predicting a Yes to a No.show?
+
+importance <- importance(M2)
+varImportance <- data.frame(Variables= row.names(importance), Importance= round(importance[, 'MeanDecreaseGini'], 2))
+
+
+```
+
+
+```{r SVM}
+trainAppointment <- appointmentData.pred2[train_ind, ]
+testAppointment <- appointmentData.pred2[-train_ind, ]
+rownames(trainAppointment) <- 1:nrow(trainAppointment)
+rownames(testAppointment) <- 1:nrow(testAppointment)
+
+#M3 <- tune(svm, numNoshow ~ ., data= trainAppointment, ranges= list(gamma= 2^(-2:2), cost= 2^(-2:2)), tunecontrol= tune.control(sampling = 'fix'))
+#summary(M3)
+#M3$best.parameters
+#model <- M3$best.model
+
+
+```
+
+
+```{r XGBOOST and PRE-PROCESSING}
+
+
+
+
+
+```
+
+
