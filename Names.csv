@@ -1,0 +1,18 @@
+Names,schDay(1-7),callHour,appDay(1-7),Lag(appDay - schDay)
+Aman Roy,2,12,3,1
+Bhumanyoo Varshney,2,13,4,2
+Jiovardhan sharma,3,13,6,3
+Parth raj gupta,3,14,7,4
+Palak Khurana,6,14,4,5
+Rajat Pundir,4,14,3,6
+Aman,2,14,2,7
+Parisha,4,14,5,8
+Prerna parashar,5,14,7,9
+Sures,3,14,6,10
+Shailesh aggarwal,5,14,2,11
+Sudipta rao,5,15,7,30
+Mayank Chopra,4,15,5,1
+Priyam Garg,6,15,7,15
+Nikhil Ayalane,7,15,3,3
+Yatharth Gupta,3,20,1,5
+Pulkit,7,21,2,2
